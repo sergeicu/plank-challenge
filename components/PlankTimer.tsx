@@ -10,6 +10,7 @@ type AppState = 'idle' | 'recording' | 'completed';
 export default function PlankTimer() {
   const [appState, setAppState] = useState<AppState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [detectionMode, setDetectionMode] = useState(false);
 
   const targetDuration = calculateTargetDuration();
   const dayNumber = getDayNumber();
@@ -87,11 +88,29 @@ export default function PlankTimer() {
                 </div>
               )}
 
+              {/* Detection Mode Toggle */}
+              <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={detectionMode}
+                    onChange={(e) => setDetectionMode(e.target.checked)}
+                    className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500 focus:ring-2 mr-3"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-800">Auto-Detection Mode</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      Timer starts when you get into plank, stops when you drop
+                    </div>
+                  </div>
+                </label>
+              </div>
+
               <button
                 onClick={handleStart}
                 className="w-full py-4 bg-purple-600 text-white text-xl font-bold rounded-xl hover:bg-purple-700 transition-colors shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
               >
-                Start Recording
+                {detectionMode ? 'Start Detection Mode' : 'Start Recording'}
               </button>
             </div>
 
@@ -125,6 +144,7 @@ export default function PlankTimer() {
             targetDuration={targetDuration}
             onComplete={handleComplete}
             onError={handleError}
+            detectionMode={detectionMode}
           />
         )}
 

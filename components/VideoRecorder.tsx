@@ -4,16 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import { VideoRecorder as Recorder, getCameraStream, downloadBlob } from '@/utils/videoRecorder';
 import { formatDuration, generateFilename, getDayNumber } from '@/utils/timerLogic';
 import { format } from 'date-fns';
+import { usePoseDetection } from '@/hooks/usePoseDetection';
+import { drawPoseSkeleton, drawDetectionFeedback } from '@/lib/poseDetection';
 
 interface VideoRecorderProps {
   targetDuration: number;
   onComplete: () => void;
   onError: (error: string) => void;
+  detectionMode?: boolean;
 }
 
-type RecordingPhase = 'preparing' | 'countdown' | 'recording' | 'preview' | 'completed';
+type RecordingPhase = 'preparing' | 'countdown' | 'recording' | 'preview' | 'completed' | 'detecting';
 
-export default function VideoRecorder({ targetDuration, onComplete, onError }: VideoRecorderProps) {
+export default function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = false }: VideoRecorderProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -28,6 +31,39 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
   const [finalFrameData, setFinalFrameData] = useState<string | null>(null);
+  const [gracePeriodCount, setGracePeriodCount] = useState(0);
+  const detectionFrameRef = useRef<number | null>(null);
+
+  // Pose detection hook
+  const {
+    isReady: poseReady,
+    isProcessing: poseLoading,
+    error: poseError,
+    detectionResult,
+    detectPose,
+    reset: resetPoseDetection,
+  } = usePoseDetection({
+    enableDetection: detectionMode,
+    onPlankDetected: () => {
+      // Auto-start recording when plank detected
+      if (phase === 'detecting') {
+        setPhase('countdown');
+      }
+    },
+    onPlankLost: () => {
+      // Auto-stop recording when plank lost (after grace period)
+      if (phase === 'recording') {
+        // Capture final frame before stopping
+        if (canvasRef.current) {
+          const finalFrame = canvasRef.current.toDataURL('image/png');
+          setFinalFrameData(finalFrame);
+        }
+        stopRecording();
+      }
+    },
+    stabilityFrames: 5,
+    gracePeriodFrames: 45, // ~3 seconds at 15 FPS
+  });
 
   // Initialize camera and setup canvas
   useEffect(() => {
@@ -56,9 +92,13 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
           }
         });
 
-        // Start countdown
+        // Start detection mode or countdown
         if (mounted) {
-          setPhase('countdown');
+          if (detectionMode) {
+            setPhase('detecting');
+          } else {
+            setPhase('countdown');
+          }
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to access camera';
@@ -77,8 +117,11 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      if (detectionFrameRef.current) {
+        cancelAnimationFrame(detectionFrameRef.current);
+      }
     };
-  }, [onError]);
+  }, [onError, detectionMode]);
 
   // Handle countdown
   useEffect(() => {
@@ -98,12 +141,35 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
     return () => clearInterval(timer);
   }, [phase]);
 
+  // Pose detection loop (runs at ~15 FPS during detecting and recording phases)
+  useEffect(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas || !detectionMode) return;
+    if (phase !== 'detecting' && phase !== 'recording') return;
+
+    const runDetection = () => {
+      detectPose(video);
+      detectionFrameRef.current = requestAnimationFrame(runDetection);
+    };
+
+    runDetection();
+
+    return () => {
+      if (detectionFrameRef.current) {
+        cancelAnimationFrame(detectionFrameRef.current);
+      }
+    };
+  }, [phase, detectionMode, detectPose]);
+
   // Handle video rendering to canvas (for both preview and recording)
   useEffect(() => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
 
     if (!canvas || !video || phase === 'preparing' || phase === 'completed' || phase === 'preview') return;
+    if (phase === 'detecting' && !detectionMode) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -120,13 +186,25 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
       startTimeRef.current = Date.now();
     }
 
-    // Animation loop to draw video (and timer overlay during recording)
+    // Animation loop to draw video (and overlays)
     const drawFrame = () => {
       if (!ctx || !video) return;
-      if (phase !== 'countdown' && phase !== 'recording') return;
+      if (phase !== 'countdown' && phase !== 'recording' && phase !== 'detecting') return;
 
       // Draw video frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Draw pose skeleton and feedback during detection and recording
+      if ((phase === 'detecting' || phase === 'recording') && detectionMode && detectionResult) {
+        // Draw skeleton overlay
+        if (detectionResult.landmarks) {
+          const color = detectionResult.isPlank ? '#00FF00' : '#FF0000';
+          drawPoseSkeleton(ctx, detectionResult.landmarks, canvas.width, canvas.height, color);
+        }
+
+        // Draw detection feedback
+        drawDetectionFeedback(ctx, detectionResult, canvas.width, canvas.height);
+      }
 
       // During recording, also draw timer overlay
       if (phase === 'recording') {
@@ -137,8 +215,8 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
         drawTimerOverlay(ctx, canvas.width, canvas.height, elapsed);
 
         // Check if target duration reached (capture final frame at exact target)
-        if (elapsed >= targetDuration) {
-          // Capture final frame before stopping
+        if (elapsed >= targetDuration && !detectionMode) {
+          // Only auto-stop for manual mode; detection mode stops when plank lost
           const finalFrame = canvas.toDataURL('image/png');
           setFinalFrameData(finalFrame);
           stopRecording();
@@ -156,7 +234,7 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [phase, targetDuration]);
+  }, [phase, targetDuration, detectionMode, detectionResult]);
 
   const drawTimerOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number, seconds: number) => {
     const timeText = formatDuration(seconds);
@@ -248,18 +326,24 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
   };
 
   const handleRecordAnother = () => {
-    // Reset to countdown phase
-    setPhase('countdown');
+    // Reset to appropriate phase
+    if (detectionMode) {
+      setPhase('detecting');
+      resetPoseDetection();
+    } else {
+      setPhase('countdown');
+    }
     setCountdown(3);
     setElapsedTime(0);
     setVideoBlob(null);
     setFinalFrameData(null);
+    setGracePeriodCount(0);
   };
 
-  if (error) {
+  if (error || poseError) {
     return (
       <div className="flex flex-col items-center justify-center p-8 bg-red-50 rounded-lg">
-        <p className="text-red-600 text-center font-semibold mb-4">Error: {error}</p>
+        <p className="text-red-600 text-center font-semibold mb-4">Error: {error || poseError}</p>
         <button
           onClick={() => window.location.reload()}
           className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -308,13 +392,23 @@ export default function VideoRecorder({ targetDuration, onComplete, onError }: V
       {phase === 'preparing' && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
           <div className="text-white text-2xl font-semibold">
-            Preparing camera...
+            {detectionMode && poseLoading ? 'Loading pose detection...' : 'Preparing camera...'}
           </div>
         </div>
       )}
 
-      {/* Stop button (visible during countdown and recording) */}
-      {(phase === 'countdown' || phase === 'recording') && (
+      {/* Detection mode overlay */}
+      {phase === 'detecting' && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 bg-opacity-90 px-6 py-3 rounded-lg">
+          <div className="text-white text-center">
+            <div className="text-lg font-semibold mb-1">Get into plank position</div>
+            <div className="text-sm opacity-90">Timer will start automatically</div>
+          </div>
+        </div>
+      )}
+
+      {/* Stop button (visible during countdown, detecting, and recording) */}
+      {(phase === 'countdown' || phase === 'detecting' || phase === 'recording') && (
         <button
           onClick={handleStop}
           disabled={isRestarting}
