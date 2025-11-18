@@ -139,6 +139,11 @@ export function downloadBlob(blob: Blob, filename: string): void {
  */
 export async function getCameraStream(facingMode: 'user' | 'environment' = 'environment'): Promise<MediaStream> {
   try {
+    // Check if mediaDevices API is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Camera API not available. Please use HTTPS or a supported browser.');
+    }
+
     // Use specified camera in landscape mode for side-view plank recording
     const constraints: MediaStreamConstraints = {
       video: {
@@ -154,6 +159,9 @@ export async function getCameraStream(facingMode: 'user' | 'environment' = 'envi
     return stream;
   } catch (error) {
     console.error('Failed to get camera stream:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
     throw new Error('Camera access denied or unavailable');
   }
 }
