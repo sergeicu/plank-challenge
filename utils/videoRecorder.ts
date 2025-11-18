@@ -135,16 +135,17 @@ export function downloadBlob(blob: Blob, filename: string): void {
 }
 
 /**
- * Request camera access with rear camera preference on mobile
+ * Request camera access with rear camera for landscape side-view plank recording
  */
 export async function getCameraStream(): Promise<MediaStream> {
   try {
-    // Try to get front-facing camera (selfie mode) on mobile devices
+    // Use rear camera in landscape mode for side-view plank recording
     const constraints: MediaStreamConstraints = {
       video: {
-        facingMode: { ideal: 'user' }, // Prefer front camera (selfie)
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        facingMode: { ideal: 'environment' }, // Rear camera for better angle
+        width: { ideal: 1920 },  // Landscape mode
+        height: { ideal: 1080 },
+        aspectRatio: { ideal: 16 / 9 },
       },
       audio: false,
     };
