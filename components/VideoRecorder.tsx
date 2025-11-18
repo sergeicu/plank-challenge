@@ -398,7 +398,7 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
     if (isRestarting) return;
     setIsRestarting(true);
 
-    // If in detecting phase (not recording yet), just go back to idle
+    // If in detecting phase (not recording yet), just go back to idle without showing completion
     if (phase === 'detecting') {
       // Cancel detection frames
       if (detectionFrameRef.current) {
@@ -419,8 +419,34 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
       // Reset pose detection
       resetPoseDetection();
 
-      // Go back to completed state to return to idle screen
-      onComplete();
+      // Go back to idle by calling onError with empty message (will reset to idle without showing error)
+      setIsRestarting(false);
+      onError('');
+      return;
+    }
+
+    // If in countdown phase, also go back to idle
+    if (phase === 'countdown') {
+      // Cancel animation frames
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+
+      // Stop camera
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+
+      // Reset pose detection if in detection mode
+      if (detectionMode) {
+        resetPoseDetection();
+      }
+
+      // Go back to idle
+      setIsRestarting(false);
+      onError('');
       return;
     }
 
