@@ -20,10 +20,10 @@ describe('usePoseDetection', () => {
     // Reset mocks
     jest.clearAllMocks();
 
-    // Create mock video element
+    // Create mock video element with proper getters
     mockVideo = document.createElement('video');
-    mockVideo.videoWidth = 640;
-    mockVideo.videoHeight = 480;
+    Object.defineProperty(mockVideo, 'videoWidth', { value: 640, writable: false });
+    Object.defineProperty(mockVideo, 'videoHeight', { value: 480, writable: false });
 
     // Create mock PoseLandmarker
     mockPoseLandmarker = {
