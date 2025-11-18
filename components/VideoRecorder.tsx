@@ -340,6 +340,32 @@ export default function VideoRecorder({ targetDuration, onComplete, onError, det
     if (isRestarting) return;
     setIsRestarting(true);
 
+    // If in detecting phase (not recording yet), just go back to idle
+    if (phase === 'detecting') {
+      // Cancel detection frames
+      if (detectionFrameRef.current) {
+        cancelAnimationFrame(detectionFrameRef.current);
+        detectionFrameRef.current = null;
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+
+      // Stop camera and go back
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+
+      // Reset pose detection
+      resetPoseDetection();
+
+      // Go back to completed state to return to idle screen
+      onComplete();
+      return;
+    }
+
     // Capture current frame as final frame
     if (canvasRef.current) {
       const finalFrame = canvasRef.current.toDataURL('image/png');
