@@ -13,6 +13,7 @@ export default function PlankTimer() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [detectionMode, setDetectionMode] = useState(false);
   const [cameraMode, setCameraMode] = useState<'user' | 'environment'>('environment');
+  const [actualElapsedTime, setActualElapsedTime] = useState<number>(0);
 
   // Memoize calculations to avoid unnecessary recomputation
   const targetDuration = useMemo(() => calculateTargetDuration(), []);
@@ -29,7 +30,8 @@ export default function PlankTimer() {
     setErrorMessage(null);
   }, []);
 
-  const handleComplete = useCallback(() => {
+  const handleComplete = useCallback((elapsedTime: number) => {
+    setActualElapsedTime(elapsedTime);
     setAppState('completed');
   }, []);
 
@@ -41,6 +43,7 @@ export default function PlankTimer() {
   const handleReset = useCallback(() => {
     setAppState('idle');
     setErrorMessage(null);
+    setActualElapsedTime(0);
   }, []);
 
   return (
@@ -209,7 +212,7 @@ export default function PlankTimer() {
 
               <div className="bg-green-50 rounded-lg p-4 mb-6">
                 <p className="text-green-800 font-medium">
-                  You held your plank for {formatDuration(targetDuration)}!
+                  You held your plank for {formatDuration(actualElapsedTime)}!
                 </p>
                 <p className="text-green-700 text-sm mt-2">
                   Your video has been downloaded automatically.
