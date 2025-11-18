@@ -33,7 +33,6 @@ export default function VideoRecorder({ targetDuration, onComplete, onError, det
   const [isRestarting, setIsRestarting] = useState(false);
   const [finalFrameData, setFinalFrameData] = useState<string | null>(null);
   const [gracePeriodCount, setGracePeriodCount] = useState(0);
-  const [zoomLevel, setZoomLevel] = useState(1.0);
   const detectionFrameRef = useRef<number | null>(null);
 
   // Pose detection hook
@@ -85,13 +84,6 @@ export default function VideoRecorder({ targetDuration, onComplete, onError, det
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.play();
-
-          // Apply zoom to video track if supported
-          const videoTrack = stream.getVideoTracks()[0];
-          const capabilities = videoTrack.getCapabilities?.();
-          if (capabilities && 'zoom' in capabilities) {
-            // Device supports zoom, will be controlled by zoom buttons
-          }
         }
 
         // Wait for video to be ready
@@ -244,23 +236,8 @@ export default function VideoRecorder({ targetDuration, onComplete, onError, det
       // Clear canvas before drawing (prevent accumulation)
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Apply zoom by drawing scaled video
-      if (zoomLevel !== 1.0) {
-        const zoomedWidth = canvas.width / zoomLevel;
-        const zoomedHeight = canvas.height / zoomLevel;
-        const offsetX = (canvas.width - zoomedWidth) / 2;
-        const offsetY = (canvas.height - zoomedHeight) / 2;
-
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.scale(zoomLevel, zoomLevel);
-        ctx.translate(-canvas.width / 2, -canvas.height / 2);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      } else {
-        // Draw video frame normally
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      }
+      // Draw video frame
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       // Draw pose skeleton and feedback during detection and recording
       if ((phase === 'detecting' || phase === 'recording') && detectionMode && detectionResult) {
@@ -485,29 +462,6 @@ export default function VideoRecorder({ targetDuration, onComplete, onError, det
             <div className="text-lg font-semibold mb-1">Get into plank position</div>
             <div className="text-sm opacity-90">Timer will start automatically</div>
           </div>
-        </div>
-      )}
-
-      {/* Zoom controls (visible during countdown, detecting, and recording) */}
-      {(phase === 'countdown' || phase === 'detecting' || phase === 'recording') && (
-        <div className="absolute top-4 left-4 flex flex-col gap-2">
-          <button
-            onClick={() => setZoomLevel(Math.min(zoomLevel + 0.2, 2.0))}
-            className="w-10 h-10 bg-blue-600 bg-opacity-90 hover:bg-opacity-100 text-white font-bold rounded-lg shadow-lg transition-all flex items-center justify-center"
-            title="Zoom Out (see more)"
-          >
-            −
-          </button>
-          <div className="text-white text-xs text-center bg-black bg-opacity-50 px-2 py-1 rounded">
-            {Math.round((2.0 - zoomLevel) * 100)}%
-          </div>
-          <button
-            onClick={() => setZoomLevel(Math.max(zoomLevel - 0.2, 0.6))}
-            className="w-10 h-10 bg-blue-600 bg-opacity-90 hover:bg-opacity-100 text-white font-bold rounded-lg shadow-lg transition-all flex items-center justify-center"
-            title="Zoom In"
-          >
-            +
-          </button>
         </div>
       )}
 
