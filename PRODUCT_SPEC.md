@@ -1063,6 +1063,52 @@ Sunday rest day screen with motivational message and next challenge preview.
 
 ---
 
+## Performance Metrics
+
+### Achieved Performance
+- Initial Bundle: ~400KB (gzipped)
+- Time to Interactive: ~2.5s
+- Canvas FPS: 30 FPS consistent
+- Detection FPS: 10 FPS stable
+- Memory: Stable over extended sessions
+- MediaPipe Load: ~300KB (lazy loaded)
+
+For detailed performance metrics and optimization strategies, see `PERFORMANCE.md`.
+
+---
+
+## Known Issues & Technical Debt
+
+### Active Issues (See QA_REPORT.md for details)
+- Memory management in long recording sessions (monitored)
+- Browser compatibility testing ongoing
+- Accessibility improvements planned (WCAG 2.1 AA compliance)
+- Error boundary implementation needed
+
+### Quality Score: B+ (85/100)
+See `QA_REPORT.md` for detailed analysis and recommendations.
+
+---
+
+## Deployment Requirements
+
+### Platform
+- **Recommended:** Vercel (automatic Next.js detection)
+- **Framework:** Next.js 16 with App Router
+- **Node Version:** 18+
+- **Environment Variables:** See `.env.local.example`
+
+### Pre-deployment Checklist
+- ✅ Run `npm run build` successfully
+- ✅ Test on target browsers (Chrome, Safari, Firefox)
+- ✅ Verify camera permissions on iOS Safari
+- ✅ Test detection mode in various lighting conditions
+- ✅ Verify HTTPS configuration (required for camera access)
+
+For detailed deployment steps and troubleshooting, see `DEPLOYMENT.md`.
+
+---
+
 **Document Date:** November 19, 2025
 
 **Document Owner:** Jordan Tian

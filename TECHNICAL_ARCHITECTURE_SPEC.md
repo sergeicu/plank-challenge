@@ -852,5 +852,55 @@ This architecture provides a solid foundation for both current operation and fut
 
 ---
 
+## 11. Known Issues & Technical Debt
+
+### 11.1 Critical Issues
+
+#### Memory Management
+**Issue**: Potential memory leaks in extended recording sessions
+**Impact**: High memory usage after 10+ minutes of recording
+**Root Cause**: Canvas contexts and MediaPipe instances not fully cleaned up
+**Mitigation**: Regular monitoring, cleanup in useEffect returns
+**Priority**: High
+
+#### Error Boundaries
+**Issue**: Missing React error boundaries for graceful error handling
+**Impact**: App crashes can affect entire user session
+**Recommendation**: Implement error boundaries around VideoRecorder and MediaPipe loading
+**Priority**: High
+
+### 11.2 Code Quality Issues
+
+#### Input Validation
+**Issue**: Incomplete validation of user inputs and camera stream states
+**Impact**: Potential runtime errors with unexpected data
+**Recommendation**: Add comprehensive validation layer with Zod schemas
+**Priority**: Medium
+
+#### Accessibility Gaps
+**Issue**: Limited WCAG 2.1 AA compliance
+**Missing Features**:
+- Keyboard navigation for all controls
+- Screen reader announcements for state changes
+- ARIA labels for interactive elements
+- Focus management in modals
+**Priority**: Medium
+
+### 11.3 Browser Compatibility
+
+#### Known Issues
+- Safari iOS: Requires user gesture for camera access
+- Firefox: Different MediaRecorder codec support
+- Older browsers: WebAssembly/MediaPipe compatibility
+
+**Testing Coverage**:
+- ✅ Chrome 90+
+- ✅ Safari 14+ (macOS)
+- ⚠️ Safari iOS (requires additional testing)
+- ⚠️ Firefox 90+ (codec fallback needed)
+
+---
+
 **Document Version History**
 - v1.0.0 - Initial comprehensive specification (November 2024)
+- v1.1.0 - Added Known Issues section (November 2025)
