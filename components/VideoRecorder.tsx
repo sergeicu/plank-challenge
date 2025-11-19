@@ -75,10 +75,10 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
 
   // Memoize pose detection callbacks to prevent hook re-initialization
   const handlePlankDetected = useCallback(() => {
-    // Auto-start recording when plank detected
+    // Auto-start recording immediately when plank detected (no countdown in detection mode)
     setPhase(prevPhase => {
       if (prevPhase === 'detecting') {
-        return 'countdown';
+        return 'recording';
       }
       return prevPhase;
     });
@@ -273,12 +273,20 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
 
+    // Start timer when entering detecting phase (for detection mode)
+    if (phase === 'detecting' && detectionMode && !startTimeRef.current) {
+      startTimeRef.current = Date.now();
+    }
+
     // Start recording if in recording phase
     if (phase === 'recording') {
       const canvasStream = canvas.captureStream(30); // 30 FPS
       recorderRef.current = new Recorder();
       recorderRef.current.start(canvasStream);
-      startTimeRef.current = Date.now();
+      // Set start time if not already set (happens in detection mode when transitioning from detecting to recording)
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now();
+      }
     }
 
     // Cancel any existing animation frame before starting new one
@@ -314,21 +322,27 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
         drawDetectionFeedback(ctx, detectionResult, canvas.width, canvas.height);
       }
 
-      // During recording, also draw timer overlay
-      if (phase === 'recording') {
-        const elapsed = Math.floor((Date.now() - (startTimeRef.current || 0)) / 1000);
+      // During recording (or detecting in detection mode), draw timer overlay
+      if (phase === 'recording' || (phase === 'detecting' && detectionMode)) {
+        // Calculate elapsed time
+        let elapsed = 0;
+        if (startTimeRef.current) {
+          elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        }
         setElapsedTime(elapsed);
 
-        // Draw timer overlay (use memoized function)
-        drawTimerOverlayMemoized(ctx, canvas.width, canvas.height, elapsed, targetDuration);
+        // Draw timer overlay (use memoized function) - only during recording, not detecting
+        if (phase === 'recording') {
+          drawTimerOverlayMemoized(ctx, canvas.width, canvas.height, elapsed, targetDuration);
 
-        // Check if target duration reached (capture final frame at exact target)
-        if (elapsed >= targetDuration && !detectionMode) {
-          // Only auto-stop for manual mode; detection mode stops when plank lost
-          const finalFrame = canvas.toDataURL('image/png');
-          setFinalFrameData(finalFrame);
-          stopRecording();
-          return;
+          // Check if target duration reached (capture final frame at exact target)
+          if (elapsed >= targetDuration && !detectionMode) {
+            // Only auto-stop for manual mode; detection mode stops when plank lost
+            const finalFrame = canvas.toDataURL('image/png');
+            setFinalFrameData(finalFrame);
+            stopRecording();
+            return;
+          }
         }
       }
 
@@ -423,8 +437,9 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
         streamRef.current = null;
       }
 
-      // Reset pose detection
+      // Reset pose detection and timer
       resetPoseDetection();
+      startTimeRef.current = null;
 
       // Go back to idle by calling onError with empty message (will reset to idle without showing error)
       setIsRestarting(false);
@@ -508,6 +523,7 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
     setVideoBlob(null);
     setFinalFrameData(null);
     setGracePeriodCount(0);
+    startTimeRef.current = null; // Reset start time
   }, [detectionMode, resetPoseDetection]);
 
   if (error || poseError) {
