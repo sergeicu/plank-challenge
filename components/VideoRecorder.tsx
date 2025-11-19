@@ -300,8 +300,8 @@ function VideoRecorder({ targetDuration, onComplete, onError, detectionMode = fa
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
 
-    // Start recording if in recording phase
-    if (phase === 'recording') {
+    // Start recording if in recording phase (only if not already recording)
+    if (phase === 'recording' && (!recorderRef.current || !recorderRef.current.isRecording())) {
       const canvasStream = canvas.captureStream(30); // 30 FPS
       recorderRef.current = new Recorder();
       recorderRef.current.start(canvasStream);
